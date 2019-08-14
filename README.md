@@ -8,6 +8,6 @@ This is a demonstration of a simple series circuit. You can create a series circ
 
 
 ## Parallel Circuit
-This is a demonstration of a simple parallel circuit. The behaviour of parallel circuits are interesting. For example, if you replace a 1 ohm light bulb of the parallel part of the circuit with a 3 ohm light bulb, the power consumption of the other light bulb of the parallel circuit will increase. 
+This is a demonstration of a simple parallel circuit. The behaviour of parallel circuits are not always easy to predict. For example, if you replace a 1 ohm light bulb of the parallel part of the circuit with a 3 ohm light bulb, the power consumption of the other light bulb of the parallel circuit will increase. 
 
 ![parallel_circuit](Figures/parallel_circuit.png)
