@@ -243,13 +243,14 @@ class Battery {
 }
 
 class Circuit {
-	constructor(divElem, circuitNo) {
+	constructor(divElem, images, circuitNo) {
 		this.divElem = divElem;
 		this.canvas = divElem.getElementsByTagName("canvas")[0]; // Get the first canvas
 		this.ctx = this.canvas.getContext("2d");
 		this.cvWidth = this.canvas.width;
 		this.cvHeight = this.canvas.height;
 		this.circuit_no = circuitNo;
+		this.ongoingTouches = [];
 		this.currentLoc = {x:0, y:0};
 		this.NIMG = 17;
 		this.NELEM = 8;
@@ -266,22 +267,34 @@ class Circuit {
 				this.nelem = 4;
 				break;
 		}
+		this.isw = [];
+		this.ib = [];
+		this.batt = [];
+		this.bulb = [];
+		/*
 		this.ibatt = document.getElementById("battery");
 		this.iw = document.getElementById("wire");
 		this.iempty = document.getElementById("empty");
 		this.ir = document.getElementById("resistor");
-		this.isw = [];
 		this.isw[0] = document.getElementById("switchon");
 		this.isw[1] = document.getElementById("switchoff");
-		this.ib = [];
 		for (var i = 0; i < this.NIMG; i++) {
 			var st1 = "lightb" + (i + 1);
 			this.ib[i] = document.getElementById(st1);
 		}
-		this.batt = [];
+		*/
+		this.ibatt = images["battery"];
+		this.iw = images["wire"];
+		this.iempty = images["empty"];
+		this.ir = images["resistor"];
+		this.isw[0] = images["switchon"];
+		this.isw[1] = images["switchoff"];
+		for (var i = 0; i < this.NIMG; i++) {
+			var st1 = "lightb" + (i + 1);
+			this.ib[i] = images[st1];
+		}
 		this.batt[0] = new Battery(this, 1.5, 65, 400);
 		this.batt[1] = new Battery(this, 1.5, 200, 400);
-		this.bulb = [];
 		for (var i = 0; i < this.nbulb; i++) {
 			this.bulb[i] = new EElem(this, 1, 0, 0, 1.0 + i, 15 + i * 115, 10, false);
 		}
@@ -328,15 +341,117 @@ class Circuit {
 		document.body.addEventListener("mousedown", this.onMouseDown.bind(this), false);		
 		document.body.addEventListener("mouseup", this.onMouseUp.bind(this), false);		
 		document.body.addEventListener("mousemove", this.onMouseMove.bind(this), false);		
-		*/
+    */
 		this.btn1.addEventListener("click", this.onButtonClick.bind(this),false);
 		this.btn2.addEventListener("click", this.onButtonClick.bind(this),false);
 		this.btn3.addEventListener("click", this.onButtonClick.bind(this),false);
 		this.divElem.addEventListener("mousedown", this.onMouseDown.bind(this),false);
 		this.divElem.addEventListener("mouseup", this.onMouseUp.bind(this),false);
 		this.divElem.addEventListener("mousemove", this.onMouseMove.bind(this),false);
+		this.divElem.addEventListener('touchstart', this.onTouchStart.bind(this), false);
+		this.divElem.addEventListener('touchend', this.onTouchEnd.bind(this), false);
+		//this.divElem.addEventListener('touchcancel', handleTouchEnd.bind(this), false);
+		//this.divElem.addEventListener('touchleave', handleTouchEnd.bind(this), false);
+    this.divElem.addEventListener('touchmove', this.onTouchMove.bind(this), false);
+		window.addEventListener("resize", this.onWindowSize.bind(this),true);
+		//window.addEventListener("resize", reportWindowSize,true);
 		this.draw();
+  }
+	
+	colorForTouch(touch) {
+		var r = touch.identifier % 16;
+		var g = Math.floor(touch.identifier / 3) % 16;
+		var b = Math.floor(touch.identifier / 7) % 16;
+		r = r.toString(16); // make it a hex digit
+		g = g.toString(16); // make it a hex digit
+		b = b.toString(16); // make it a hex digit
+		var color = "#" + r + g + b;
+		console.log("color for touch with identifier " + touch.identifier + " = " + color);
+		return color;
 	}
+
+	copyTouch(touch) {
+  	var x = touch.pageX - this.canvas.offsetLeft;
+		var y = touch.pageY - this.canvas.offsetTop;
+	  return { identifier: touch.identifier, pageX: x, pageY: y };
+	}
+	
+	ongoingTouchIndexById(idToFind) {
+		for (var i = 0; i < this.ongoingTouches.length; i++) {
+			var id = this.ongoingTouches[i].identifier;
+			
+			if (id == idToFind) {
+				return i;
+			}
+		}
+		return -1;    // not found
+	}
+
+	onTouchStart(evt) {
+		//evt.preventDefault();
+		var touches = evt.changedTouches;
+		for(var i=0;i<touches.length; i++) {
+			this.ongoingTouches.push(this.copyTouch(touches[i]));
+			//var color = this.colorForTouch(touches[i]);
+			var x = touches[i].pageX - this.canvas.offsetLeft;
+			var y = touches[i].pageY - this.canvas.offsetTop;
+			this.selectionStart(x,y);
+			this.bSelectionProcessed = true;
+		}
+	}
+
+	onTouchEnd(evt) {
+		//evt.preventDefault();
+		var touches = evt.changedTouches;
+	
+		for (var i = 0; i < touches.length; i++) {
+			//var color = this.colorForTouch(touches[i]);
+			var idx = this.ongoingTouchIndexById(touches[i].identifier);
+	
+			if (idx >= 0) {
+				var x = touches[i].pageX - this.canvas.offsetLeft;
+				var y = touches[i].pageY - this.canvas.offsetTop;
+				this.selectionCancel(x,y);
+				this.ongoingTouches.splice(idx, 1);  // remove it; we're done
+			} else {
+				console.log("can't figure out which touch to end");
+			}
+		}
+	}
+
+	onTouchMove(evt) {
+		evt.preventDefault();
+		var touches = evt.changedTouches;
+	
+		for (var i = 0; i < touches.length; i++) {
+			//var color = this.colorForTouch(touches[i]);
+			var idx = this.ongoingTouchIndexById(touches[i].identifier);
+	
+			if (idx >= 0) {
+				var x = touches[i].pageX - this.canvas.offsetLeft;
+				var y = touches[i].pageY - this.canvas.offsetTop;
+        if(this.selected != null) {
+					this.currentLoc.x = x - this.selected.w / 2;
+					this.currentLoc.y = y - this.selected.h / 2;
+					this.draw();
+				}
+				this.ongoingTouches.splice(idx, 1, this.copyTouch(touches[i]));  // swap in the new touch record
+			} else {
+				console.log("can't figure out which touch to continue");
+			}
+		}
+	}
+
+	onWindowSize(evt) {
+		var offsetY = this.canvas.offsetTop;
+		var offsetX = this.canvas.offsetLeft;
+		var st1 = 'top:' + (offsetY+20) +'px;left:'+ (offsetX+460);
+		this.btn1.setAttribute('style', 'position:absolute;'+st1+'px;width:120px;height:35px;'); //top:30px;left:470px;width:120px;height:35px;
+		st1 = 'top:' + (offsetY+65) +'px;left:'+ (offsetX+460);
+		this.btn2.setAttribute('style', 'position:absolute;'+st1+'px;width:120px;height:35px;'); // 75px 470px
+		st1 = 'top:' + (offsetY+110) +'px;left:'+ (offsetX+460);
+		this.btn3.setAttribute('style', 'position:absolute;'+st1+'px;width:120px;height:35px;');
+  }
 
 	onButtonClick(evt) {
 		var source = evt.target;
@@ -367,16 +482,13 @@ class Circuit {
 		if (this.selected != null) {
 			var x = evt.pageX - this.canvas.offsetLeft;
 			var y = evt.pageY - this.canvas.offsetTop;
-				this.currentLoc.x = x - this.selected.w / 2;
+			this.currentLoc.x = x - this.selected.w / 2;
 			this.currentLoc.y = y - this.selected.h / 2;
 			this.draw();
 		}
   }
 
-	onMouseDown(evt) {
-		// We are not currently dragging
-		var x = evt.pageX - this.canvas.offsetLeft;
-		var y = evt.pageY - this.canvas.offsetTop;
+	selectionStart(x,y){
   	this.selected = null;
 		for (var i = 0; i < this.nbulb; i++) {
 			if (this.bulb[i].in(x, y)) {
@@ -401,7 +513,7 @@ class Circuit {
 			}
 		}
 		if (this.selected != null) {
-			if (this.selected.indx != 3) {
+			if (this.selected.indx != 3) { // Switch
 				var tmp = x - this.selected.w / 2;
 				this.currentLoc.x = tmp;
 				this.currentLoc.y = y - this.selected.h / 2;
@@ -411,36 +523,51 @@ class Circuit {
 			}
 			this.draw();
 		}
-  }
+	}
 
-	onMouseUp(evt) {
+	onMouseDown(evt) {
 		// We are not currently dragging
 		var x = evt.pageX - this.canvas.offsetLeft;
 		var y = evt.pageY - this.canvas.offsetTop;
+		if(this.bSelectionProcessed) {
+			this.selectionProcesed = false;
+		}
+		else {
+			this.selectionStart(x,y);
+		}
+  }
+
+	selectionCancel(x, y) {
 		if (this.selected != null) {
 			this.updated = false;
 			if (this.selectadd) {
 				for (var i = 0; i < this.nelem; i++) {
 					if (this.el[i].in(x, y)) {
-						if (this.el[i].indx != 3) {
+						if (this.el[i].indx != 3) { // Switch
 							this.el[i].resist = this.selected.resist;
 							this.el[i].indx = this.selected.indx;
 						}
 					}
 				}
-			} 
-		  else if (!this.selected.in(x, y)) {
-					for (var i = 0; i < this.nelem; i++) {
-						if (this.selected == this.el[i]) {
-							this.el[i].resist = 1e20;
-							this.el[i].indx = 5;
-							break;
-						}
+			}
+			else if (!this.selected.in(x, y)) {
+				for (var i = 0; i < this.nelem; i++) {
+					if (this.selected == this.el[i]) {
+						this.el[i].resist = 1e20;
+						this.el[i].indx = 5;
+						break;
 					}
-		  }
-  	  this.selected = null;
-		  this.draw();
-	  } 
+				}
+			}
+			this.selected = null;
+			this.draw();
+		}
+	}
+
+	onMouseUp(evt) {
+		var x = evt.pageX - this.canvas.offsetLeft;
+		var y = evt.pageY - this.canvas.offsetTop;
+	  this.selectionCancel(x,y);
   }
 	/** 
 	 * Draw a thick black polyline using the given path
@@ -570,9 +697,59 @@ class Circuit {
   		this.wire.drawMoving(this.currentLoc);
 	}
 }
-//var c1 = document.getElementById("myCanvas1");
-var d1 = document.getElementById("myDiv1");
-var circuit1 = new Circuit(d1,1);
-//var c2 = document.getElementById("myCanvas2");
-var d2 = document.getElementById("myDiv2");
-var circuit2 = new Circuit(d2,2);
+
+var allLoaded = false;
+var imgCount = 0;  // this counts the loaded images
+// list of images to load
+const imageURLS ={"battery":"battery.png","empty":"empty.png",
+  "lightb1":"lightb1.png","lightb2":"lightb2.png","lightb3":"lightb3.png",
+  "lightb4":"lightb4.png","lightb5":"lightb5.png","lightb6":"lightb6.png",
+  "lightb7":"lightb7.png","lightb8":"lightb8.png","lightb9":"lightb9.png",
+  "lightb10":"lightb10.png","lightb11":"lightb11.png",
+  "lightb12":"lightb12.png","lightb13":"lightb13.png",
+  "lightb14":"lightb14.png","lightb15":"lightb15.png",
+  "lightb16":"lightb16.png","lightb17":"lightb17.png",
+  "resistor":"resistor.png","switchoff":"switchoff.png",
+  "switchon":"switchon.png","wire":"wire.png"};
+// associative array of images
+var images = {};
+
+const onImageLoad = function(){ imgCount += 1; } // onload event
+// loads an image an puts it on the image array
+const loadImage = function(url){
+    images.push(new Image());
+    images[images.length-1].src = "images/"+url;
+    images[images.length-1].onload = onImageLoad;
+}
+const waitForLoaded = function(){
+  if(imgCount === Object.keys(images).length){
+    //var c1 = document.getElementById("myCanvas1");
+    var d1 = document.getElementById("myDiv1");
+    var circuit1 = new Circuit(d1,images,1);
+    //var c2 = document.getElementById("myCanvas2");
+    var d2 = document.getElementById("myDiv2");
+    var circuit2 = new Circuit(d2,images,2);
+	}
+	else {
+    setTimeout(waitForLoaded,100); // try again in 100ms
+  }
+}
+
+// create the images and set the URLS
+for(var key in imageURLS) {
+	//console.log(imageURLS[key]);
+	images[key] = new Image();
+	images[key].src = "images/"+imageURLS[key];
+	images[key].onload = onImageLoad;
+}
+
+setTimeout(waitForLoaded,100);  // monitor the image loading
+
+//Img loaded
+
+/*var img = new Image;
+img.src = "images/wire.png";
+img.addEventListener("load", function () {
+});
+document.getElementById("1st_image").complete == true
+*/
